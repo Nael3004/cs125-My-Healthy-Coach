@@ -1,41 +1,57 @@
 import SwiftUI
-	
-// Schedules need to be stored on the database
-// we will extract and populate the schedule object in the app with the schedules extarcted from database
-struct Schedule {
-    let schedules: [String: [Int: String]] = [
-        // testing purpose only, see if schedule correctly displays
-        "2024-03-10": [
-            1: "Sleep",
-            2: "Sleep",
-            3: "Sleep",
-            4: "Sleep",
-            5: "Sleep",
-            6: "Sleep",
-            7: "Sleep",
-            8: "Sleep",
-            9: "Sleep",
-            10: "Eat",
-            11: "Sleep",
-            12: "Work",
-            13: "Work",
-            14: "Work",
-            15: "Work",
-            16: "Work",
-            17: "Work",
-            18: "Work",
-            19: "Work",
-            20: "Work",
-            21: "Work",
-            22: "Work",
-            23: "Work",
-            24: "Work"
-        ],
-    ]
+    
+struct ActivityCategory: Codable {
+    let activity: String
+    let category: String
+}
+
+class ScheduleViewModel: ObservableObject {
+    @Published var editableSchedules: [String: [Int: ActivityCategory]] {
+        didSet {
+            saveSchedules()
+        }
+    }
+    
+    init(schedules: [String: [Int: ActivityCategory]]? = nil) {
+        if let storedSchedules = UserDefaults.standard.object(forKey: "editableSchedules") as? Data,
+           let decodedSchedules = try? JSONDecoder().decode([String: [Int: ActivityCategory]].self, from: storedSchedules) {
+            self.editableSchedules = decodedSchedules
+        } else if let schedules = schedules {
+            self.editableSchedules = schedules
+        } else {
+            self.editableSchedules = [:]
+        }
+    }
+    
+    func updateSchedule(for date: String, hour: Int, activity: String, category: String) {
+        editableSchedules[date]?[hour] = ActivityCategory(activity: activity, category: category)
+        saveSchedules()
+    }
+    
+    // Replace this with the actual schedule recommendation code
+    func createNewSchedule(for date: String) {
+        let placeholderSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
+        editableSchedules[date] = placeholderSchedule
+    }
+    
+    private func saveSchedules() {
+        if let encoded = try? JSONEncoder().encode(editableSchedules) {
+            UserDefaults.standard.set(encoded, forKey: "editableSchedules")
+        }
+    }
+    
+    func clearAndCreateNewSchedule(for date: String) {
+        editableSchedules[date] = nil
+        createNewSchedule(for: date)
+    }
+    
+    func deleteSchedule(for date: String) {
+        editableSchedules.removeValue(forKey: date)
+    }
 }
 
 struct ScheduleView: View {
-    let schedule: Schedule
+    @ObservedObject var viewModel: ScheduleViewModel
     let today: String = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -45,36 +61,145 @@ struct ScheduleView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Today's Schedule")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .padding(.leading)
-                    .padding(.bottom, 10)
-                if let todaySchedule = schedule.schedules[today] {
-                    ForEach(todaySchedule.sorted(by: { $0.key < $1.key }), id: \.key) { hour, activity in
+                HStack {
+                    Text("Today's Schedule - \(formattedDate)")
+                        .font(.system(size: 20))
+                        .fontWeight(.bold)
+                        .padding(.leading)
+                        .padding(.bottom, 10)
+                }
+
+                if let todaySchedule = viewModel.editableSchedules[today], !todaySchedule.isEmpty {
+                    ForEach(Array(todaySchedule.keys).sorted(), id: \.self) { hour in
                         HStack {
-                            Text("\(hour % 12 == 0 ? 12 : hour % 12) \(hour < 12 ? "AM" : "PM"):")
+                            Text("\(hour % 12 == 0 ? 12 : hour % 12) \(hour < 12 || hour == 24 ? "AM" : "PM"):")
                                 .foregroundColor(.black)
-                                .font(.system(size: 23))
+                                .font(.system(size: 20))
                                 .frame(width: 70, alignment: .leading)
-                            Text(activity)
+                            VStack {
+                                TextEditor(text: Binding(
+                                    get: { self.viewModel.editableSchedules[today]?[hour]?.activity ?? "" },
+                                    set: { self.viewModel.updateSchedule(for: today, hour: hour, activity: $0, category: self.viewModel.editableSchedules[today]?[hour]?.category ?? "") }
+                                ))
+                                .frame(height: 100)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .stroke(Color.gray, lineWidth: 1)
+                                )
                                 .foregroundColor(.black)
-                                .font(.system(size: 23))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                                .padding(.trailing)
+                                .font(.system(size: 20))
+                                
+                                TextField("Category", text: Binding(
+                                    get: { self.viewModel.editableSchedules[today]?[hour]?.category ?? "" },
+                                    set: { self.viewModel.updateSchedule(for: today, hour: hour, activity: self.viewModel.editableSchedules[today]?[hour]?.activity ?? "", category: $0) }
+                                ))
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .padding(.top, 5)
+                            }
+                            .padding(.trailing)
                         }
                         .padding(.horizontal)
+                        Rectangle().fill(Color.black).frame(height: 3).padding([.top, .bottom], 8)
                     }
                 } else {
                     Text("No schedule available for today.")
                         .padding(.bottom, 5)
                         .padding(.leading)
                 }
+                
+                HStack {
+                    Button("Create New Schedule") {
+                        viewModel.clearAndCreateNewSchedule(for: today)
+                    }.foregroundColor(.white).padding().frame(maxWidth: .infinity).background(Color.blue).cornerRadius(10)
+                    Button("Delete Schedule") {
+                        viewModel.deleteSchedule(for: today)
+                    }.foregroundColor(.white).padding().frame(maxWidth: .infinity).background(Color.red).cornerRadius(10)
+                }
+                .padding(.top, 10).fixedSize(horizontal: true, vertical: true)
             }
             .padding()
         }
     }
+    
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd/yy"
+        return formatter.string(from: Date())
+    }
 }
+
+
+struct Recommendation: Identifiable {
+    let id = UUID()
+    let category: String
+    let recommendation: String
+}
+
+// Testing only - Replace with the function that generates the recommendations to be rated
+let recommendationsList = [
+    Recommendation(category: "Health", recommendation: "Daily Exercise"),
+    Recommendation(category: "Diet", recommendation: "Eat More Greens"),
+    Recommendation(category: "Productivity", recommendation: "Use a Planner"),
+]
+
+struct RecommendationsView: View {
+    @State private var ratings: [String: [String: Int]] = [:]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                Text("Please Rate the Recommendations Suggested").font(.system(size: 25)).multilineTextAlignment(.center)
+                    .padding()
+                Rectangle().fill(Color.black).frame(height: 5).padding([.top, .bottom], 8)
+                ForEach(recommendationsList) { recommendation in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("\(recommendation.category) - \(recommendation.recommendation)").font(.system(size: 20))
+                            .padding([.leading, .trailing], 16)
+                        Slider(value: Binding<Double>(
+                            get: {
+                                Double(self.ratings[recommendation.category]?[recommendation.recommendation] ?? 5)
+                            },
+                            set: { newValue in
+                                let intValue = Int(newValue.rounded())
+                                self.ratings[recommendation.category, default: [:]][recommendation.recommendation] = intValue
+                            }
+                        ), in: 1...10, step: 1)
+                        .padding([.leading, .trailing], 16)
+                        Text("Rating: \(self.ratings[recommendation.category]?[recommendation.recommendation, default: 5] ?? 5)").font(.system(size: 20))
+                            .padding([.leading, .trailing], 16)
+                    }
+                    Rectangle().fill(Color.black).frame(height: 3).padding([.top, .bottom], 8)
+                }
+                Button("Save Ratings") {
+                    saveRatings()
+                }
+                .padding()
+                .foregroundColor(.white)
+                .background(Color.blue)
+                .cornerRadius(10)
+            }
+            .padding()
+        }
+        .onAppear {
+            loadRatings()
+        }
+    }
+
+    private func saveRatings() {
+        if let encodedRatings = try? JSONEncoder().encode(ratings) {
+            UserDefaults.standard.set(encodedRatings, forKey: "recommendationRatings")
+        }
+    }
+
+    private func loadRatings() {
+        if let savedRatings = UserDefaults.standard.object(forKey: "recommendationRatings") as? Data,
+           let decodedRatings = try? JSONDecoder().decode([String: [String: Int]].self, from: savedRatings) {
+            ratings = decodedRatings
+        }
+    }
+}
+
+
 
 struct ContentView: View {
     @State private var currentState: Int? = nil
@@ -85,65 +210,26 @@ struct ContentView: View {
     @State private var nutAllergy = false
     @State private var vegetarian = false
 
-    // UserDefaults keys
     private let ageKey = "UserAge"
     private let dairyKey = "dairyAllergy"
     private let fishKey = "fishAllergy"
     private let shellfishKey = "shellfishAllergy"
     private let nutKey = "NutAllergy"
     private let vegKey = "Vegetarian"
-    let schedule = Schedule()
 
     var body: some View {
+        let backgroundGradient = getBackgroundGradient(forState: currentState)
         ZStack {
-            LinearGradient(gradient: Gradient(colors: [.blue, .green]), startPoint: .topLeading, endPoint: .bottomTrailing).edgesIgnoringSafeArea(.all)
+            backgroundGradient.edgesIgnoringSafeArea(.all)
             GeometryReader { geo in
                 VStack {
                     switch currentState {
                     case 0:
-                        ScheduleView(schedule: schedule)
+                        ScheduleView(viewModel: ScheduleViewModel())
                     case 1:
-                        Text("Placeholder")
+                        RecommendationsView()
                     case 2:
-                        VStack {
-                            HStack {
-                                Text("Age:")
-                                    .foregroundColor(.black)
-                                    .font(.headline)
-                                Picker(selection: $age, label: Text("")) {
-                                    ForEach(1..<100) { index in Text("\(index)").tag(index)}
-                                }
-                                .pickerStyle(WheelPickerStyle())
-                                .frame(height: 100)
-                            }.padding()
-                            Toggle("Dairy Allergy", isOn: $dairyAllergy)
-                                .font(.headline).padding()
-                            Toggle("Fish Allergy", isOn: $fishAllergy)
-                                .font(.headline).padding()
-                            Toggle("Shellfish Allergy", isOn: $shellfishAllergy)
-                                .font(.headline).padding()
-                            Toggle("Nut Allergy", isOn: $nutAllergy)
-                                .font(.headline).padding()
-                            Toggle("Vegetarian", isOn: $vegetarian)
-                                .font(.headline).padding()
-                            Button(action: saveAnswers) {
-                                ZStack {
-                                    Rectangle()
-                                        .foregroundColor(.blue)
-                                        .frame(height: 50)
-                                        .cornerRadius(10)
-                                        .padding()
-                                    Text("Save")
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .padding()
-                            .onTapGesture {
-                                withAnimation {
-                                    saveAnswers()
-                                }
-                            }
-                        }
+                        profileView
                     default:
                         EmptyView()
                     }
@@ -181,9 +267,48 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear {
+            loadAnswers()
+        }
     }
     
-    // needs to connect and store answers on database
+    private var profileView: some View {
+            VStack {
+                HStack {
+                    Text("Age:")
+                        .foregroundColor(.black)
+                        .font(.system(size: 30))
+                    Picker(selection: $age, label: Text("")) {
+                        ForEach(1..<100) { index in Text("\(index)").tag(index) }
+                    }
+                    .pickerStyle(WheelPickerStyle())
+                    .frame(height: 100)
+                }.padding()
+                Toggle("Dairy Allergy", isOn: $dairyAllergy)
+                    .font(.system(size: 30)).padding()
+                Toggle("Fish Allergy", isOn: $fishAllergy)
+                    .font(.system(size: 30)).padding()
+                Toggle("Shellfish Allergy", isOn: $shellfishAllergy)
+                    .font(.system(size: 30)).padding()
+                Toggle("Nut Allergy", isOn: $nutAllergy)
+                    .font(.system(size: 30)).padding()
+                Toggle("Vegetarian", isOn: $vegetarian)
+                    .font(.system(size: 30)).padding()
+                Button(action: saveAnswers) {
+                    ZStack {
+                        Rectangle()
+                            .foregroundColor(.blue)
+                            .frame(height: 50)
+                            .cornerRadius(10)
+                            .padding()
+                        Text("Save")
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding()
+            }
+        }
+
     private func saveAnswers() {
         UserDefaults.standard.set(age, forKey: ageKey)
         UserDefaults.standard.set(dairyAllergy, forKey: dairyKey)
@@ -192,6 +317,28 @@ struct ContentView: View {
         UserDefaults.standard.set(nutAllergy, forKey: nutKey)
         UserDefaults.standard.set(vegetarian, forKey: vegKey)
     }
+    
+    private func loadAnswers() {
+        age = UserDefaults.standard.integer(forKey: ageKey)
+        dairyAllergy = UserDefaults.standard.bool(forKey: dairyKey)
+        fishAllergy = UserDefaults.standard.bool(forKey: fishKey)
+        shellfishAllergy = UserDefaults.standard.bool(forKey: shellfishKey)
+        nutAllergy = UserDefaults.standard.bool(forKey: nutKey)
+        vegetarian = UserDefaults.standard.bool(forKey: vegKey)
+    }
+    
+    func getBackgroundGradient(forState currentState: Int?) -> LinearGradient {
+            switch currentState {
+            case 0:
+                return LinearGradient(gradient: Gradient(colors: [.blue, .green]), startPoint: .topLeading, endPoint: .bottomTrailing)
+            case 1:
+                return LinearGradient(gradient: Gradient(colors: [.blue, .orange]), startPoint: .topLeading, endPoint: .bottomTrailing)
+            case 2:
+                return LinearGradient(gradient: Gradient(colors: [.red, .purple]), startPoint: .topLeading, endPoint: .bottomTrailing)
+            default:
+                return LinearGradient(gradient: Gradient(colors: [.blue, .green]), startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+        }
 }
 
 struct ContentView_Previews: PreviewProvider {
