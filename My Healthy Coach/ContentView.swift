@@ -233,6 +233,7 @@ struct RecommendationsView: View {
 
 
 struct ContentView: View {
+    @EnvironmentObject var healthManager: HealthManager
     @State private var currentState: Int? = nil
     @State private var age: Int = 1
     @State private var dairyAllergy = false
@@ -300,6 +301,7 @@ struct ContentView: View {
         }
         .onAppear {
             loadAnswers()
+            healthManager.fetchStepCountToday()
         }
     }
     
