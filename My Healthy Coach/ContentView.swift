@@ -248,7 +248,7 @@ struct ContentView: View {
     private let shellfishKey = "shellfishAllergy"
     private let nutKey = "NutAllergy"
     private let vegKey = "Vegetarian"
-
+    let healthManager = HealthManager()
     var body: some View {
         let backgroundGradient = getBackgroundGradient(forState: currentState)
         ZStack {
@@ -292,6 +292,7 @@ struct ContentView: View {
                     Spacer()
                     Button {
                         currentState = 2
+                        healthManager.fetchStepCountToday()
                     } label: {
                         Image(systemName: "person").resizable().cornerRadius(10).aspectRatio(contentMode:.fit).frame(width: 80.0, height: 80).foregroundColor(.black).padding(.horizontal)
                     }
