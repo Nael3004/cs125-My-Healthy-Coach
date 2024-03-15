@@ -12,10 +12,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 @main
 struct My_Healthy_CoachApp: App {
+    @StateObject var healthManager = HealthManager()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView().environmentObject(healthManager)
         }
     }
 }
