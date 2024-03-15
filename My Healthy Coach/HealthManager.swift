@@ -7,30 +7,31 @@ class HealthManager: ObservableObject {
 
     init() {
         let steps = HKQuantityType(.stepCount)
-        let sleepSampleType = HKCategoryType(.sleepAnalysis)
-        let sleepTime = HKCategoryValueSleepAnalysis.inBed.rawValue
-        let calories = HKQuantityType(.activeEnergyBurned)
-        let fat = HKSampleType.quantityType(forIdentifier: .dietaryFatTotal)
-        let satfat = HKSampleType.quantityType(forIdentifier: .dietaryFatSaturated)
-        let cholesterol = HKSampleType.quantityType(forIdentifier: .dietaryCholesterol)
-        let carbohydrates = HKSampleType.quantityType(forIdentifier: .dietaryCarbohydrates)
-        let sodium = HKSampleType.quantityType(forIdentifier: .dietarySodium)
-        let fiber = HKSampleType.quantityType(forIdentifier: .dietaryFiber)
-        let protein = HKSampleType.quantityType(forIdentifier: .dietaryProtein)
-        let sugar = HKSampleType.quantityType(forIdentifier: .dietarySugar)
+        let sleepSampleType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+                //let sleepTime = HKCategoryValueSleepAnalysis.inBed.rawValue
+        //let calories = HKQuantityType(.activeEnergyBurned)
+        let fat = HKSampleType.quantityType(forIdentifier: .dietaryFatTotal)!
+        let satfat = HKSampleType.quantityType(forIdentifier: .dietaryFatSaturated)!
+        let cholesterol = HKSampleType.quantityType(forIdentifier: .dietaryCholesterol)!
+        let carbohydrates = HKSampleType.quantityType(forIdentifier: .dietaryCarbohydrates)!
+        let sodium = HKSampleType.quantityType(forIdentifier: .dietarySodium)!
+        let fiber = HKSampleType.quantityType(forIdentifier: .dietaryFiber)!
+        let protein = HKSampleType.quantityType(forIdentifier: .dietaryProtein)!
+        let sugar = HKSampleType.quantityType(forIdentifier: .dietarySugar)!
         let workouts = HKObjectType.workoutType()
-        let healthTypes: Set = [steps, sleepSampleType, calories, fat, satfat, cholestrol, carbohydrates, sodium, fiber, protein, sugar, workouts]
+        let healthTypes: Set = [steps, sleepSampleType, fat, satfat, cholesterol, carbohydrates, sodium, fiber, protein, sugar, workouts]
 
         Task {
             do{
                 try await healthStore.requestAuthorization(toShare: [], read:healthTypes)
-                fetchStepCount()
+                fetchStepCountWeek()
+                fetchStepCountToday()
                 fetchSleep()
-                fetchCaloriesBurnedWeek()
-                fetchCaloriesBurnedToday()
+                //fetchCaloriesBurnedWeek()
+                //fetchCaloriesBurnedToday()
                 fetchFat()
                 fetchSatFat()
-                fetchCholestrol()
+                fetchCholesterol()
                 fetchCarbohydrates()
                 fetchSodium()
                 fetchFiber()
@@ -39,198 +40,196 @@ class HealthManager: ObservableObject {
             } catch {
                 print("error fetching healthkit data")
             }
-        } 
+        }
     }
 
-    func fetchStepCountWeek(){
-        let steps = HKQuantityType(.stepCount)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in 
-            guard let numSteps = result, error == nil else {
-                print("error fetching step count")
-                return
-        }
-        let numSteps = result.sumQuantity()
-        let stepCount = numSteps.doubleValue(for: .count())
-        print(stepCount)
-        }
-        healthStore.execute(query)
-    }
-
-    func fetchStepCountToday(){
-        let steps = HKQuantityType(.stepCount)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in 
-            guard let numSteps = result, error == nil else {
-                print("error fetching step count")
-                return
-        }
-        let numSteps = result.sumQuantity()
-        let stepCount = numSteps.doubleValue(for: .count())
-        print(stepCount)
-        }
-        healthStore.execute(query)
-    }
-
-    func fetchSleep(){
-        let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKSampleQuery(sampleType: sleep, predicate: pred) { _, result, error in 
-            guard let sleepInfo = result, error == nil else {
-                print("error fetching sleep")
-                return
+        func fetchStepCountWeek(){
+            let steps = HKQuantityType(.stepCount)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
+            let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in
+                guard let numSteps = result?.sumQuantity(), error == nil else {
+                    print("error fetching step count")
+                    return
             }
-        let sleepInfo = result.sumQuantity()
-        let sleepInfo = sleepInfo.doubleValue(for: .count())
-        }
-        healthStore.execute(query)
-    }
-
-    func fetchCaloriesBurnedWeek(){
-        let calories = HKQuantityType(.activeEnergyBurned)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: calories, quantitySamplePredicate: pred) { _, result, error in 
-            guard let numCalories = result, error == nil else {
-                print("error fetching calories")
-                return
+            let stepCount = numSteps.doubleValue(for: .count())
+            print(stepCount)
             }
-        let numCalories = result.sumQuantity()
-        let caloriesBurned = numCalories.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchCaloriesBurnedToday(){
-        let calories = HKQuantityType(.activeEnergyBurned)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: calories, quantitySamplePredicate: pred) { _, result, error in 
-            guard let numCalories = result, error == nil else {
-                print("error fetching calories")
-                return
+        func fetchStepCountToday(){
+            let steps = HKQuantityType(.stepCount)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: Date()), end: Date())
+            let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in
+                guard let numSteps = result?.sumQuantity(), error == nil else {
+                    print("error fetching step count")
+                    return
             }
-        let numCalories = result.sumQuantity()
-        let caloriesBurned = numCalories.doubleValue(for: .count())
+            let stepCount = numSteps.doubleValue(for: .count())
+            print(stepCount)
+            }
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }      
 
-    func fetchFat(){
-        let fat = HKQuantityType(.dietaryFatTotal)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: fat, quantitySamplePredicate: pred) { _, result, error in 
-            guard let fatInfo = result, error == nil else {
-                print("error fetching fat")
-                return
+        func fetchSleep(){
+            let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
+            let query = HKSampleQuery(sampleType: sleep, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, result, error in
+                guard let sleepInfo = result as? [HKCategorySample], error == nil else {
+                    print("error fetching sleep")
+                    return
+                }
+            //let sleepInfo = result.sumQuantity()
+                print(sleepInfo, "sleep info")
             }
-        let fatInfo = result.sumQuantity()
-        let fatInfo = fatInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchSatFat(){
-        let satfat = HKQuantityType(.dietaryFatSaturated)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: satfat, quantitySamplePredicate: pred) { _, result, error in 
-            guard let satfatInfo = result, error == nil else {
-                print("error fetching sat fat")
-                return
-            }
-        let satfatInfo = result.sumQuantity()
-        let satfatInfo = satfatInfo.doubleValue(for: .count())
-        }
-        healthStore.execute(query)
-    }
+    // func fetchCaloriesBurnedWeek(){
+        //     let calories = HKQuantityType(.activeEnergyBurned)
+        //     let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
+        //     let query = HKStatisticsCollectionQuery(quantityType: calories, quantitySamplePredicate: pred) { _, result, error in
+        //         guard let numCalories = result, error == nil else {
+        //             print("error fetching calories")
+        //             return
+        //         }
+        //     let numCalories = result.sumQuantity()
+        //     let caloriesBurned = numCalories.doubleValue(for: .count())
+        //     }
+        //     healthStore.execute(query)
+        // }
 
-    func fetchCholestrol(){
-        let cholestrol = HKQuantityType(.dietaryCholesterol)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: cholestrol, quantitySamplePredicate: pred) { _, result, error in 
-            guard let cholestrolInfo = result, error == nil else {
-                print("error fetching cholestrol")
-                return
-            }
-        let cholestrolInfo = result.sumQuantity()
-        let cholestrolInfo = cholestrolInfo.doubleValue(for: .count())
-        }
-        healthStore.execute(query)
-    }
+    // func fetchCaloriesBurnedWeek(){
+        //     let calories = HKQuantityType(.activeEnergyBurned)
+        //     let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
+        //     let query = HKStatisticsCollectionQuery(quantityType: calories, quantitySamplePredicate: pred) { _, result, error in
+        //         guard let numCalories = result, error == nil else {
+        //             print("error fetching calories")
+        //             return
+        //         }
+        //     let numCalories = result.sumQuantity()
+        //     let caloriesBurned = numCalories.doubleValue(for: .count())
+        //     }
+        //     healthStore.execute(query)
+        // }
 
-    func fetchCarbohydrates(){
-        let carbohydrates = HKQuantityType(.dietaryCarbohydrates)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: carbohydrates, quantitySamplePredicate: pred) { _, result, error in 
-            guard let carbohydratesInfo = result, error == nil else {
-                print("error fetching carbohydrates")
-                return
+        func fetchFat(){
+            let fat = HKQuantityType(.dietaryFatTotal)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: fat, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let fatInfo = result as? [HKQuantitySample] else {
+                    print("error fetching fat")
+                    return
+                }
+                let fat_Info = fatInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(fat_Info)
             }
-        let carbohydratesInfo = result.sumQuantity()
-        let carbohydratesInfo = carbohydratesInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchSodium(){
-        let sodium = HKQuantityType(.dietarySodium)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: sodium, quantitySamplePredicate: pred) { _, result, error in 
-            guard let sodiumInfo = result, error == nil else {
-                print("error fetching sodium")
-                return
+        func fetchSatFat(){
+            let satfat = HKQuantityType(.dietaryFatSaturated)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: satfat, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let satfatInfo = result as? [HKQuantitySample] else {
+                    print("error fetching sat fat")
+                    return
+                }
+                let sat_fatInfo = satfatInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(sat_fatInfo)
             }
-        let sodiumInfo = result.sumQuantity()
-        let sodiumInfo = sodiumInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchFiber(){
-        let fiber = HKQuantityType(.dietaryFiber)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: fiber, quantitySamplePredicate: pred) { _, result, error in 
-            guard let fiberInfo = result, error == nil else {
-                print("error fetching fiber")
-                return
+        func fetchCholesterol(){
+            let cholesterol = HKQuantityType(.dietaryCholesterol)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: cholesterol, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let cholesterolInfo = result as? [HKQuantitySample] else {
+                    print("error fetching cholesterol")
+                    return
+                }
+                let cholesterol_Info = cholesterolInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(cholesterol_Info)
             }
-        let fiberInfo = result.sumQuantity()
-        let fiberInfo = fiberInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchProtein(){
-        let protein = HKQuantityType(.dietaryProtein)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: protein, quantitySamplePredicate: pred) { _, result, error in 
-            guard let proteinInfo = result, error == nil else {
-                print("error fetching protein")
-                return
+        func fetchCarbohydrates(){
+            let carbohydrates = HKQuantityType(.dietaryCarbohydrates)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: carbohydrates, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let carbohydratesInfo = result as? [HKQuantitySample] else {
+                    print("error fetching carbohydrates")
+                    return
+                }
+                let carbohydrates_Info = carbohydratesInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(carbohydrates_Info)
             }
-        let proteinInfo = result.sumQuantity()
-        let proteinInfo = proteinInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
 
-    func fetchSugar(){
-        let sugar = HKQuantityType(.dietarySugar)
-        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-        let query = HKStatisticsQuery(quantityType: sugar, quantitySamplePredicate: pred) { _, result, error in 
-            guard let sugarInfo = result, error == nil else {
-                print("error fetching sugar")
-                return
+        func fetchSodium(){
+            let sodium = HKQuantityType(.dietarySodium)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: sodium, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let sodiumInfo = result as? [HKQuantitySample] else {
+                    print("error fetching sodium")
+                    return
+                }
+                let sodium_Info = sodiumInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(sodium_Info)
             }
-        let sugarInfo = result.sumQuantity()
-        let sugarInfo = sugarInfo.doubleValue(for: .count())
+            healthStore.execute(query)
         }
-        healthStore.execute(query)
-    }
+
+        func fetchFiber(){
+            let fiber = HKQuantityType(.dietaryFiber)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: fiber, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let fiberInfo = result as? [HKQuantitySample] else {
+                    print("error fetching fiber")
+                    return
+                }
+                let fiber_Info = fiberInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(fiber_Info)
+            }
+            healthStore.execute(query)
+        }
+
+        func fetchProtein(){
+            let protein = HKQuantityType(.dietaryProtein)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: protein, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let proteinInfo = result as? [HKQuantitySample] else {
+                    print("error fetching protein")
+                    return
+                }
+                let protein_Info = proteinInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(protein_Info)
+            }
+            healthStore.execute(query)
+        }
+
+        func fetchSugar(){
+            let sugar = HKQuantityType(.dietarySugar)
+            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
+            let query = HKSampleQuery(sampleType: sugar, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
+                guard error == nil, let sugarInfo = result as? [HKQuantitySample] else {
+                    print("error fetching sugar")
+                    return
+                }
+                let sugar_Info = sugarInfo.reduce(0.0) {$0 + $1.quantity.doubleValue(for: HKUnit.gram())}
+                print(sugar_Info)
+            }
+            healthStore.execute(query)
+        }
 
     func fetchWorkouts(){
         let workouts = HKSampleType.workoutType()
-        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date())),
+        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date()),
             HKQuery.predicateForWorkoutActivities(workoutActivityType: .running)])
-        let query = HKSampleQuery(sampleType: workouts, predicate: pred) { _, result, error in 
+        let query = HKSampleQuery(sampleType: workouts, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, result, error in
             guard let workouts = result as? [HKWorkout], error == nil else {
                 print("error fetching workouts")
                 return
@@ -238,7 +237,7 @@ class HealthManager: ObservableObject {
         for workout in workouts{
             print(workout.allStatistics)
             print(workout.workoutActivityType)
-            print(workout.duration) 
+            print(workout.duration)
             }
         }
         healthStore.execute(query)
