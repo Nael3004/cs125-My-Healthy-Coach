@@ -43,13 +43,13 @@ class HealthManager: ObservableObject {
         }
     }
 
-        func fetchStepCountWeek(){
+    func fetchStepCountWeek() -> Array<Int>{
+            return [2051, 3391, 385, 7940, 5831, 1932, 538]
             let steps = HKQuantityType(.stepCount)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
             let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in
                 guard let numSteps = result?.sumQuantity(), error == nil else {
                     print("error fetching step count")
-                    return
             }
             let stepCount = numSteps.doubleValue(for: .count())
             print(stepCount)
@@ -57,7 +57,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchStepCountToday(){
+        func fetchStepCountToday() -> Int{
+            return 538
             let steps = HKQuantityType(.stepCount)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: Date()), end: Date())
             let query = HKStatisticsQuery(quantityType: steps, quantitySamplePredicate: pred) { _, result, error in
@@ -71,19 +72,20 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchSleep(){
-            let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-            let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
-            let query = HKSampleQuery(sampleType: sleep, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, result, error in
-                guard let sleepInfo = result as? [HKCategorySample], error == nil else {
-                    print("error fetching sleep")
-                    return
-                }
-            //let sleepInfo = result.sumQuantity()
-                print(sleepInfo, "sleep info")
+    func fetchSleep() -> Array<(Int, Int)>{
+        return [(6, 30), (7,41), (7,11), (8, 8), (5, 3), (9, 1), (8, 48)]
+        let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+        let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date())
+        let query = HKSampleQuery(sampleType: sleep, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, result, error in
+            guard let sleepInfo = result as? [HKCategorySample], error == nil else {
+                print("error fetching sleep")
+                return
             }
-            healthStore.execute(query)
+        //let sleepInfo = result.sumQuantity()
+            print(sleepInfo, "sleep info")
         }
+        healthStore.execute(query)
+    }
 
     // func fetchCaloriesBurnedWeek(){
         //     let calories = HKQuantityType(.activeEnergyBurned)
@@ -113,7 +115,8 @@ class HealthManager: ObservableObject {
         //     healthStore.execute(query)
         // }
 
-        func fetchFat(){
+    func fetchFat() -> Array<Int>{
+            return [30, 43, 26, 52, 49, 35, 62]
             let fat = HKQuantityType(.dietaryFatTotal)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: fat, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -127,7 +130,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchSatFat(){
+        func fetchSatFat() -> Array<Int>{
+            return [20, 31, 17, 15, 39, 21, 33]
             let satfat = HKQuantityType(.dietaryFatSaturated)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: satfat, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -141,7 +145,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchCholesterol(){
+        func fetchCholesterol() -> Array<Int>{
+            return [110, 283, 193, 231, 348, 69, 234] // mg
             let cholesterol = HKQuantityType(.dietaryCholesterol)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: cholesterol, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -155,7 +160,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchCarbohydrates(){
+        func fetchCarbohydrates() -> Array<Int>{
+            return [170, 150, 132, 79, 253, 196, 180]
             let carbohydrates = HKQuantityType(.dietaryCarbohydrates)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: carbohydrates, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -169,7 +175,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchSodium(){
+        func fetchSodium() -> Array<Int>{
+            return [729, 1300, 2210, 1832, 1039, 1639, 920] // mg
             let sodium = HKQuantityType(.dietarySodium)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: sodium, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -183,7 +190,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchFiber(){
+        func fetchFiber() -> Array<Int>{
+            return [13, 18, 7, 20, 19, 22, 14]
             let fiber = HKQuantityType(.dietaryFiber)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: fiber, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -197,7 +205,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchProtein(){
+        func fetchProtein() -> Array<Int>{
+            return [62, 36, 44, 30, 28, 45, 39]
             let protein = HKQuantityType(.dietaryProtein)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: protein, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -211,7 +220,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-        func fetchSugar(){
+        func fetchSugar() -> Array<Int>{
+            return [26, 33, 20, 38, 19, 35, 27]
             let sugar = HKQuantityType(.dietarySugar)
             let pred = HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date(), options: .strictEndDate)
             let query = HKSampleQuery(sampleType: sugar, predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { query, result, error in
@@ -225,7 +235,8 @@ class HealthManager: ObservableObject {
             healthStore.execute(query)
         }
 
-    func fetchWorkouts(){
+    func fetchWorkouts() -> Array<(Int, String)>{
+        return [(60, "Running"), (38, "Gym"), (0, "None"), (117, "Biking"), (70, "Climbing"), (35, "Walking"), (47, "Running")] //minutes, exercise
         let workouts = HKSampleType.workoutType()
         let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -7, to: Date()), end: Date()),
             HKQuery.predicateForWorkoutActivities(workoutActivityType: .running)])
