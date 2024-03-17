@@ -7,6 +7,8 @@ struct ActivityCategory: Codable {
     let category: String
 }
 
+
+
 class ScheduleViewModel: ObservableObject {
     @Published var editableSchedules: [String: [Int: ActivityCategory]] {
         didSet {
@@ -36,7 +38,7 @@ class ScheduleViewModel: ObservableObject {
     func createNewSchedule(for date: String) {
         let placeholderSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
         editableSchedules[date] = placeholderSchedule
-        uploadScheduleToFirebase()	
+        uploadScheduleToFirebase()
     }
     
     private func saveSchedules() {
@@ -204,7 +206,7 @@ struct Rating: Codable {
 
 struct RecommendationsView: View {
     @State private var ratings: [String: [String: Int]] = [:]
-
+    let healthManager = HealthManager()
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -265,7 +267,6 @@ struct RecommendationsView: View {
             userID = newUserID
             let ideal_sleeptime = 8
         }
-
         var fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
         var sat_fat = healthManager.fetchSatFat().reduce(0, +) / healthManager.fetchSatFat().count
         var chol = healthManager.fetchCholesterol().reduce(0, +) / healthManager.fetchCholesterol().count
@@ -274,8 +275,7 @@ struct RecommendationsView: View {
         var fiber = healthManager.fetchFiber().reduce(0, +) / healthManager.fetchFiber().count
         var prot = healthManager.fetchProtein().reduce(0, +) / healthManager.fetchProtein().count
         var sugar = healthManager.fetchSugar().reduce(0, +) / healthManager.fetchSugar().count
-
-        var cur_nut_score = nut_rater(fat, sat_fat, chol, carbs, sodium, fiber, prot, sugar)[0]
+        var cur_nut_score = nut_rater(fat: fat, sat_fat: sat_fat, chol: chol, carbs: carbs, sodium: sodium, fiber: fiber, prot: prot, sugar: sugar)[0]
         let usr_ref = db.collection("users").document(userID)
         usr_ref.getDocument { (document, error) in
             if let document = document, document.exists {
@@ -288,8 +288,8 @@ struct RecommendationsView: View {
             }
         }
 
-        best_food = nil
-        best_food_score = 0
+        var best_food = ""
+        var best_food_score = 0
         db.collection("food").getDocuments { document, error in
             if let error = error as NSError? {
                 var errorMessage = "Error getting document: \(error.localizedDescription)"
@@ -335,7 +335,7 @@ struct RecommendationsView: View {
 
         var vig_t = 0
         var mod_t = 0
-        var mus_g = Set<String>() //replace with functions to populate data 
+        var mus_g = Set<String>() //replace with functions to populate data
         
         let cur_work_score = activ_rater(mod_t, vig_t, mus_g)[0]
 
@@ -525,8 +525,8 @@ struct ContentView: View {
                     Spacer()
                     Button {
                         currentState = 2
-                        let steps = healthManager.fetchStepCountWeek()
-                        print(steps, "steps")
+                        //let steps = healthManager.fetchStepCountWeek()
+                        //print(steps, "steps")
                     } label: {
                         Image(systemName: "person").resizable().cornerRadius(10).aspectRatio(contentMode:.fit).frame(width: 80.0, height: 80).foregroundColor(.black).padding(.horizontal)
                     }
