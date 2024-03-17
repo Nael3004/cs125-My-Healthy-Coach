@@ -36,7 +36,7 @@ class ScheduleViewModel: ObservableObject {
     func createNewSchedule(for date: String) {
         let placeholderSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
         editableSchedules[date] = placeholderSchedule
-        uploadScheduleToFirebase()
+        uploadScheduleToFirebase()	
     }
     
     private func saveSchedules() {
@@ -465,7 +465,6 @@ func activ_rater(mod_time: Int, vig_time: Int, mus_groups: Set<String>) -> [Floa
 }
 
 struct ContentView: View {
-    @EnvironmentObject var healthManager: HealthManager
     @State private var currentState: Int? = nil
     @State private var age: Int = 1
     @State private var dairyAllergy = false
@@ -480,7 +479,9 @@ struct ContentView: View {
     private let shellfishKey = "shellfishAllergy"
     private let nutKey = "NutAllergy"
     private let vegKey = "Vegetarian"
+    
     let healthManager = HealthManager()
+
     var body: some View {
         let backgroundGradient = getBackgroundGradient(forState: currentState)
         ZStack {
@@ -524,7 +525,8 @@ struct ContentView: View {
                     Spacer()
                     Button {
                         currentState = 2
-                        healthManager.fetchStepCountToday()
+                        let steps = healthManager.fetchStepCountWeek()
+                        print(steps, "steps")
                     } label: {
                         Image(systemName: "person").resizable().cornerRadius(10).aspectRatio(contentMode:.fit).frame(width: 80.0, height: 80).foregroundColor(.black).padding(.horizontal)
                     }
@@ -534,7 +536,6 @@ struct ContentView: View {
         }
         .onAppear {
             loadAnswers()
-            healthManager.fetchStepCountToday()
         }
     }
     
