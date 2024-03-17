@@ -213,7 +213,7 @@ struct RecommendationsView: View {
                 Text("Please Rate the Recommendations Suggested").font(.system(size: 25)).multilineTextAlignment(.center)
                     .padding()
                 Rectangle().fill(Color.black).frame(height: 5).padding([.top, .bottom], 8)
-                ForEach(recommendationsList) { recommendation in
+                ForEach(generateRecommendation()) { recommendation in
                     VStack(alignment: .leading, spacing: 10) {
                         Text("\(recommendation.category) - \(recommendation.recommendation)").font(.system(size: 20))
                             .padding([.leading, .trailing], 16)
@@ -250,12 +250,14 @@ struct RecommendationsView: View {
     func generateRecommendation() -> [Recommendation] {
         let db = Firestore.firestore()
         let userID: String
+        var ideal_sleeptime = 8
         if let existingUserID = UserDefaults.standard.string(forKey: "UserID") {
             userID = existingUserID
             let docRef = db.collection("users").document(userID)
             docRef.getDocument { (document, error) in
                 if let document = document, document.exists {
-                    let ideal_sleeptime = document.get("ideal_sleep")
+                    ideal_sleeptime = document.data()!["ideal_sleep"] as! Int
+                    //ideal_sleeptime = document.get("ideal_sleep")
                 } else {
                     print("Document does not exist")
                 }
@@ -265,152 +267,156 @@ struct RecommendationsView: View {
             UserDefaults.standard.set(newUserID, forKey: "UserID")
             UserDefaults.standard.set(8, forKey: "ideal_sleep")
             userID = newUserID
-            let ideal_sleeptime = 8
         }
-        var fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
-        var sat_fat = healthManager.fetchSatFat().reduce(0, +) / healthManager.fetchSatFat().count
-        var chol = healthManager.fetchCholesterol().reduce(0, +) / healthManager.fetchCholesterol().count
-        var carbs = healthManager.fetchCarbohydrates().reduce(0, +) / healthManager.fetchCarbohydrates().count
-        var sodium = healthManager.fetchSodium().reduce(0, +) / healthManager.fetchSodium().count
-        var fiber = healthManager.fetchFiber().reduce(0, +) / healthManager.fetchFiber().count
-        var prot = healthManager.fetchProtein().reduce(0, +) / healthManager.fetchProtein().count
-        var sugar = healthManager.fetchSugar().reduce(0, +) / healthManager.fetchSugar().count
-        var cur_nut_score = nut_rater(fat: fat, sat_fat: sat_fat, chol: chol, carbs: carbs, sodium: sodium, fiber: fiber, prot: prot, sugar: sugar)[0]
+        let fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
+        let sat_fat = healthManager.fetchSatFat().reduce(0, +) / healthManager.fetchSatFat().count
+        let chol = healthManager.fetchCholesterol().reduce(0, +) / healthManager.fetchCholesterol().count
+        let carbs = healthManager.fetchCarbohydrates().reduce(0, +) / healthManager.fetchCarbohydrates().count
+        let sodium = healthManager.fetchSodium().reduce(0, +) / healthManager.fetchSodium().count
+        let fiber = healthManager.fetchFiber().reduce(0, +) / healthManager.fetchFiber().count
+        let prot = healthManager.fetchProtein().reduce(0, +) / healthManager.fetchProtein().count
+        let sugar = healthManager.fetchSugar().reduce(0, +) / healthManager.fetchSugar().count
+        let cur_nut_score = nut_rater(fat: fat, sat_fat: sat_fat, chol: chol, carbs: carbs, sodium: sodium, fiber: fiber, prot: prot, sugar: sugar)[0]
         let usr_ref = db.collection("users").document(userID)
+        var food_arr = [Rating]()
+        var workouts_arr = [Rating]()
+        var restrictions = [String]()
         usr_ref.getDocument { (document, error) in
             if let document = document, document.exists {
                 let usr_data = document.data()
-                let food_arr = usr_data!["foods"] as? [Rating] ?? nil
-                let workouts_arr = usr_data!["workouts"] as? [Rating] ?? nil
-                let restrictions = usr_data!["food_restrictions"] as? [String] ?? nil
+                food_arr = usr_data!["foods"] as! [Rating]
+                workouts_arr = usr_data!["workouts"] as! [Rating]
+                restrictions = usr_data!["food_restrictions"] as! [String]
             } else {
                 print("Document does not exist")
             }
         }
 
-        var best_food = ""
-        var best_food_score = 0
-        db.collection("food").getDocuments { document, error in
-            if let error = error as NSError? {
-                var errorMessage = "Error getting document: \(error.localizedDescription)"
-            }
-            else {
-                do {
-                    var food_item = try document.data(as: Food.self)
-                    var f_score = nut_rater(fat + food_item.fat, sat_fat + food_item.sat_fat, chol + food_item.chol, carbs + food_item.carbs, sodium + food_item.sodium, fiber + food_item.fiber, prot + food_item.prot, sugar + food_item.sugar)[0]
-                    var restricted = false
-                    for usr_rest in restrictions {
-                        for food_rest in food.restrictions {
-                            if usr_rest == food_rest {
-                                restricted = true
+        var best_food = Food(id: "",name: "", fat: 0, sat_fat:0, carbs: 0, chol: 0, sodium: 0, sugar: 0, fiber: 0, prot: 0, restrictions: [String]())
+        var best_food_score = Float(0)
+        
+        Firestore.firestore().collection("food").getDocuments { docs, err in
+            if err == nil {
+                print("Error getting documents")
+            } else {
+                for document in docs!.documents{
+                    do {
+                        let food_item = try document.data(as: Food.self)
+                            
+                        let f_score = nut_rater(fat: fat + food_item.fat, sat_fat: sat_fat + food_item.sat_fat, chol: chol + food_item.chol, carbs: carbs + food_item.carbs, sodium: sodium + food_item.sodium, fiber: fiber + food_item.fiber, prot: prot + food_item.prot, sugar: sugar + food_item.sugar)[0]
+                        var restricted = false
+                        for usr_rest in restrictions {
+                            for food_rest in food_item.restrictions {
+                                if usr_rest == food_rest {
+                                    restricted = true
+                                }
                             }
                         }
-                    }
-                    
-                    var rating = 5 // can make unknown ratings depend on other item's ratings
-
-                    for usr_rate in food_arr {
-                        if usr_rate.item == food_item.name {
-                            rating = usr_rate.rating
+                            
+                            
+                            
+                        var rating = 5 // can make unknown ratings depend on other item's ratings
+                            
+                        for usr_rate in food_arr {
+                            if usr_rate.item == food_item.name {
+                                rating = usr_rate.rating
+                            }
                         }
+                            
+                        let weighted_f_score = Float((Float(f_score) - Float(cur_nut_score)) + Float(abs(Float(f_score) - Float(cur_nut_score))) * 0.1 * Float(rating))
+                        
+                        if weighted_f_score > best_food_score && !restricted {
+                            best_food_score = weighted_f_score
+                            best_food = food_item
+                        }
+                             
+                    } catch {
+                        print("error")
                     }
-
-                    var weighted_f_score = (f_score - cur_nut_score) + abs(f_score - cur_nut_score) * 0.1 * rating
-
-                    if weighted_f_score > best_food_score && !restricted {
-                        best_food_score = weighted_f_score
-                        best_food = food_item
-                    }
-                }
-                catch {
-                    print(error)
                 }
             }
         }
-        if best_food != nil {
-            var rec1 = Recommendation(id: best_food.id, category: "Nutrition", recommendation: "try to eat more " + best_food.name)
-        } else {
-            var rec1 = Recommendation(id: nil, category: "Nutrition", recommendation: "We don't have foods that fit your restrictions")
+        
+        var rec1 = Recommendation(category: "Nutrition", recommendation: "We don't have foods that fit your restrictions")
+        if best_food.name != "" {
+            rec1 = Recommendation(category: "Nutrition", recommendation: "try to eat more " + best_food.name)
         }
 
-        var vig_t = 0
-        var mod_t = 0
+        let vig_t = 0
+        let mod_t = 0
         var mus_g = Set<String>() //replace with functions to populate data
         
-        let cur_work_score = activ_rater(mod_t, vig_t, mus_g)[0]
+        let cur_work_score = activ_rater(mod_time: mod_t, vig_time: vig_t, mus_groups: mus_g)[0]
 
-        best_workout = nil
-        best_workout_score = 0
-        db.collection("workouts").getDocument { document, error in
-            if let error = error as NSError? {
-                var errorMessage = "Error getting document: \(error.localizedDescription)"
-            }
-            else {
-                do {
-                    var workout_item = try document.data(as: Workout.self)
-                    var w_score = activ_rater()
-                    
-                    var rating = 5 // can make unknown ratings depend on other item's ratings
-
-                    for usr_rate in workouts_arr {
-                        if usr_rate.item == workout_item.name {
-                            rating = usr_rate.rating
+        var best_workout = Workout(name: "", group: false, intensity: "", muscles: [String](), place: "")
+        var best_workout_score = Float(0)
+        Firestore.firestore().collection("workouts").getDocuments { docs, err in
+            if err == nil {
+                print("Error getting documents")
+            } else {
+                for document in docs!.documents{
+                    do {
+                        let workout_item = try document.data(as: Workout.self)
+                            
+                        var rating = 5 // can make unknown ratings depend on other item's ratings
+                        
+                        for usr_rate in workouts_arr {
+                            if usr_rate.item == workout_item.name {
+                                rating = usr_rate.rating
+                            }
                         }
-                    }
-
-                    var w_score = activ_rater(mod_t, vig_t, mus_g)[0]
-                    if workout_item.intensity == "moderate" {
-                        var w_score = activ_rater(mod_t + 60, vig_t, mus_g)[0]
-                    }
-                    if workout_item.intensity == "vigorous" {
-                        var w_score = activ_rater(mod_t, vig_t + 45, mus_g)[0]
-                    }
-                    if workout_item.intensity == "muscle" {
-                        var groups = mus_g
-                        for g in workout_item.muscles {
-                            mus_g.insert(g)
+                        
+                        let w_score = Float(0)
+                        if workout_item.intensity == "moderate" {
+                            let w_score = activ_rater(mod_time: mod_t + 60, vig_time: vig_t, mus_groups: mus_g)[0]
                         }
-                        var w_score = activ_rater(mod_t, vig_t, groups)[0]
+                        if workout_item.intensity == "vigorous" {
+                            let w_score = activ_rater(mod_time: mod_t, vig_time: vig_t + 45, mus_groups: mus_g)[0]
+                        }
+                        if workout_item.intensity == "muscle" {
+                            let groups = mus_g
+                            for g in workout_item.muscles {
+                                mus_g.insert(g)
+                            }
+                            let w_score = activ_rater(mod_time: mod_t, vig_time: vig_t, mus_groups: groups)[0]
+                        }
+                        
+                        
+                        let weighted_w_score = Float((Float(w_score) - Float(cur_work_score)) + Float(abs(Float(w_score) - Float(cur_work_score))) * 0.1 * Float(rating))
+                         
+                        if weighted_w_score > best_workout_score {
+                            best_workout_score = weighted_w_score
+                            best_workout = workout_item
+                        }
+                             
+                    } catch {
+                        print("error")
                     }
-
-
-                    var weighted_w_score = (w_score - cur_work_score) + abs(w_score - cur_work_score) * 0.1 * rating
-
-                    if weighted_w_score > best_workout_score {
-                        best_workout_score = weighted_w_score
-                        best_workout = workout_item
-                    }
-                }
-                catch {
-                    print(error)
                 }
             }
         }
-        if best_food != nil {
-            var rec2 = Recommendation(id: best_workout.id, category: "Exercise", recommendation: "Do some " + best_workout.name)
-        } else {
-            var rec2 = Recommendation(id: nil, category: "Exercise", recommendation: "We don't have foods that fit your restrictions")
+        
+        var rec2 = Recommendation(category: "Exercise", recommendation: "We don't have workouts that'd help you yet")
+        if best_workout.name != "" {
+            rec2 = Recommendation(category: "Exercise", recommendation: "Do some " + best_workout.name)
         }
 
-        var rec3 = nil
-
+        var rec3 = Recommendation(category: "Sleep", recommendation: "Your sleep is pretty healthy, keep limiting your screen usage before bed")
         let sleep_time = 42 //replace with healthManager func
         let deep_t = 8
         let rem_t = 8
 
         if ideal_sleeptime - 1 > sleep_time {
-            rec3 = Recommendation(id:nil, category: "Sleep", recommendation: "You should sleep more")
+            rec3 = Recommendation(category: "Sleep", recommendation: "You should sleep more")
         } else if ideal_sleeptime + 1 < sleep_time {
-            rec3 = Recommendation(id:nil, category: "Sleep", recommendation: "You should sleep a little less")
-        } else if rem_t / sleep_time < 0.25 {
-            rec3 = Recommendation(id:nil, category: "Sleep", recommendation: "You should try to make your sleep schedule more regular")
-        } else if deep_t / sleep_time < 0.25 {
-            rec3 = Recommendation(id:nil, category: "Sleep", recommendation: "You should do relaxation exercises or meditate before sleeping")
+            rec3 = Recommendation(category: "Sleep", recommendation: "You should sleep a little less")
+        } else if Double(rem_t) / Double(sleep_time) < 0.25 {
+            rec3 = Recommendation(category: "Sleep", recommendation: "You should try to make your sleep schedule more regular")
+        } else if Double(deep_t) / Double(sleep_time) < 0.25 {
+            rec3 = Recommendation(category: "Sleep", recommendation: "You should do relaxation exercises or meditate before sleeping")
         }
 
-        if rec3 == nil {
-            rec3 = Recommendation(id:nil, category: "Sleep", recommendation: "Your sleep is pretty healthy, keep limiting your screen usage before bed")
-        }
+        
         return [rec1, rec2, rec3]
     }
 
@@ -429,38 +435,38 @@ struct RecommendationsView: View {
 }
 
 func nut_rater(fat: Int, sat_fat: Int, chol: Int, carbs: Int, sodium: Int, fiber: Int, prot: Int, sugar: Int) -> [Float] {
-    var fiber_score = min(max((13 - (28 - fiber)) / 13, 0), max((18 - (fiber - 28)) / 18, 0))
-    var fat_score = min(max((53 - (78 - fat)) / 53, 0), max((15 - (fat - 78)) / 15, 0))
-    var sat_fat_score = min(max((15 - (20 - sat_fat)) / 15, 0), max((10 - (sat_fat - 20)) / 10, 0))
-    var chol_score = min(max((100 - (300 - chol)) / 100, 0), max((25 - (chol - 300)) / 25, 0))
-    var carbs_score = min(max((175 - (275 - carbs)) / 175, 0), max((75 - (carbs - 275)) / 75, 0))
-    var sodium_score = min(max((700 - (2300 - sodium)) / 700, 0), max((350 - (sodium - 2300)) / 350, 0))
-    var prot_score = min(max((15 - (50 - prot)) / 15, 0), max((20 - (prot - 50)) / 20, 0))
-    var sugar_score = min(max((25 - (50 - sugar)) / 25, 0), max((15 - (sugar - 50)) / 15, 0))
-    var score = min(0.125 * fiber_score + 0.125 * fat_score + 0.125 * sat_fat_score + 0.125 * chol_score + 0.125 * carbs_score + 0.125 * sodium_score + 0.125 * prot_score + 0.125 * sugar_score, 1)
+    let fiber_score = Float(min(max((13 - (28 - Float(fiber))) / 13, 0), max((18 - (Float(fiber) - 28)) / 18, 0)))
+    let fat_score = Float(min(max((53 - (78 - Float(fat))) / 53, 0), max((15 - (Float(fat) - 78)) / 15, 0)))
+    let sat_fat_score = Float(min(max((15 - (20 - Float(sat_fat))) / 15, 0), max((10 - (Float(sat_fat) - 20)) / 10, 0)))
+    let chol_score = Float(min(max((100 - (300 - Float(chol))) / 100, 0), max((25 - (Float(chol) - 300)) / 25, 0)))
+    let carbs_score = Float(min(max((175 - (275 - Float(carbs))) / 175, 0), max((75 - (Float(carbs) - 275)) / 75, 0)))
+    let sodium_score = Float(min(max((700 - (2300 - Float(sodium))) / 700, 0), max((350 - (Float(sodium) - 2300)) / 350, 0)))
+    let prot_score = Float(min(max((15 - (50 - Float(prot))) / 15, 0), max((20 - (Float(prot) - 50)) / 20, 0)))
+    let sugar_score = Float(min(max((25 - (50 - Float(sugar))) / 25, 0), max((15 - (Float(sugar) - 50)) / 15, 0)))
+    let score = Float(min(0.125 * fiber_score + 0.125 * fat_score + 0.125 * sat_fat_score + 0.125 * chol_score + 0.125 * carbs_score + 0.125 * sodium_score + 0.125 * prot_score + 0.125 * sugar_score, 1))
     return [score, fat_score, sat_fat_score, chol_score, carbs_score, sodium_score, fiber_score, prot_score, sugar_score]
 }
 
-func sleep_rater(sleeptime: Double, REM_time: Float, deep_time: Float, ideal_sleeptime: Int, nightsmeasured: Int=7) -> [Float] {
-    sleeptime = sleeptime / nightsmeasured
-    var tot_time_score = min(max((ideal_sleeptime + 1 - sleeptime) / (ideal_sleeptime - 1), 0), max((sleeptime - 1 - ideal_sleeptime) / (ideal_sleeptime + 1), 0))
-    if ideal_sleeptime - 1 <= sleeptime && ideal_sleeptime + 1 >= sleeptime {
+func sleep_rater(sleep_time: Double, REM_time: Float, deep_time: Float, ideal_sleeptime: Int, nightsmeasured: Int=7) -> [Float] {
+    var sleeptime = Double(sleep_time) / Double(nightsmeasured)
+    var tot_time_score = Float(min(max((Float(ideal_sleeptime + 1) - Float(sleeptime)) / Float(ideal_sleeptime - 1), 0), max((Float(sleeptime - 1) - Float(ideal_sleeptime)) / Float(ideal_sleeptime + 1), 0)))
+    if Double(ideal_sleeptime - 1) <= sleeptime && Double(ideal_sleeptime + 1) >= sleeptime {
         tot_time_score = 1
     }
-    sleeptime = sleeptime * nightsmeasured
-    var REM_score = max(min(max((0.08 - (0.25 - (REM_time/sleeptime))) / 0.08, 0), max((0.1 - (REM_time/sleeptime)) / 0.1, 0)), 1)
-    var deep_score = max(min(max((0.08 - (0.25 - (deep_time/sleeptime))) / 0.08, 0), max((0.1 - (deep_time/sleeptime)) / 0.1, 0)), 1)
-    var score = min(0.4 * tot_time_score + 0.3 * REM_score + 0.3 * deep_score, 1)
+    sleeptime = sleeptime * Double(nightsmeasured)
+    var REM_score = max(min(max((0.08 - (0.25 - (Float(REM_time)/Float(sleeptime)))) / 0.08, 0), max((0.1 - (Float(REM_time)/Float(sleeptime))) / 0.1, 0)), 1)
+    var deep_score = Float(max(min(max((0.08 - (0.25 - (Float(deep_time)/Float(sleeptime)))) / 0.08, 0), max((0.1 - (Float(deep_time)/Float(sleeptime))) / 0.1, 0)), 1))
+    var score = Float(min(0.4 * tot_time_score + 0.3 * REM_score + 0.3 * deep_score, 1))
     return [score, tot_time_score, REM_score, deep_score]
 }
 
 func activ_rater(mod_time: Int, vig_time: Int, mus_groups: Set<String>) -> [Float] {
-    var mod_score = min((mod_time / 150), 1)
-    var vig_score = min((vig_time / 75), 1)
-    var mix_score = min(((mod_time + 2 * vig_time) / 150), 1)
-    var cardio_score = max(mod_score, vig_score, mix_score)
-    var mus_groups_score = max(min(1 - ((7 - mus_groups.count) / 7), 1), 0)
-    var score = min(cardio_score * 0.7 + 0.3 * mus_groups_score, 1)
+    let mod_score = Float(min((Float(mod_time) / 150), 1))
+    let vig_score = Float(min((Float(vig_time) / 75), 1))
+    let mix_score = Float(min(((Float(mod_time) + 2 * Float(vig_time)) / 150), 1))
+    let cardio_score = Float(max(mod_score, vig_score, mix_score))
+    let mus_groups_score = Float(max(min(1 - ((7 - mus_groups.count) / 7), 1), 0))
+    let score = min(cardio_score * 0.7 + 0.3 * mus_groups_score, 1)
     return [score, cardio_score, mod_score, vig_score, mix_score, mus_groups_score]
 }
 
