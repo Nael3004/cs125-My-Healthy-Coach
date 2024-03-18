@@ -55,6 +55,9 @@ class ScheduleViewModel: ObservableObject {
             let newUserID = UUID().uuidString
             UserDefaults.standard.set(newUserID, forKey: "UserID")
             UserDefaults.standard.set(8, forKey: "ideal_sleep")
+            UserDefaults.standard.set([Rating](), forKey: "foods")
+            UserDefaults.standard.set([Rating](), forKey: "workouts")
+            UserDefaults.standard.set([String](), forKey: "food_restrictions")
             userID = newUserID
         }
         let fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
@@ -192,7 +195,7 @@ class ScheduleViewModel: ObservableObject {
 
         var i = 0
         while i < ideal_sleeptime {
-            var index = i - 7
+            var index = 7 - i
             if index <= 0 {
                 index = index + 24
             }
