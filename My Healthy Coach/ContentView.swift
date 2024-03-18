@@ -36,8 +36,170 @@ class ScheduleViewModel: ObservableObject {
     
     // Replace this with the actual schedule recommendation code
     func createNewSchedule(for date: String) {
-        let placeholderSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
-        editableSchedules[date] = placeholderSchedule
+        let finalSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
+        let db = Firestore.firestore()
+        let userID: String
+        var ideal_sleeptime = 8
+        if let existingUserID = UserDefaults.standard.string(forKey: "UserID") {
+            userID = existingUserID
+            let docRef = db.collection("users").document(userID)
+            docRef.getDocument { (document, error) in
+                if let document = document, document.exists {
+                    ideal_sleeptime = document.data()!["ideal_sleep"] as! Int
+                    //ideal_sleeptime = document.get("ideal_sleep")
+                } else {
+                    print("Document does not exist")
+                }
+            }
+        } else {
+            let newUserID = UUID().uuidString
+            UserDefaults.standard.set(newUserID, forKey: "UserID")
+            UserDefaults.standard.set(8, forKey: "ideal_sleep")
+            userID = newUserID
+        }
+        let fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
+        let sat_fat = healthManager.fetchSatFat().reduce(0, +) / healthManager.fetchSatFat().count
+        let chol = healthManager.fetchCholesterol().reduce(0, +) / healthManager.fetchCholesterol().count
+        let carbs = healthManager.fetchCarbohydrates().reduce(0, +) / healthManager.fetchCarbohydrates().count
+        let sodium = healthManager.fetchSodium().reduce(0, +) / healthManager.fetchSodium().count
+        let fiber = healthManager.fetchFiber().reduce(0, +) / healthManager.fetchFiber().count
+        let prot = healthManager.fetchProtein().reduce(0, +) / healthManager.fetchProtein().count
+        let sugar = healthManager.fetchSugar().reduce(0, +) / healthManager.fetchSugar().count
+        let cur_nut_score = nut_rater(fat: fat, sat_fat: sat_fat, chol: chol, carbs: carbs, sodium: sodium, fiber: fiber, prot: prot, sugar: sugar)[0]
+        let usr_ref = db.collection("users").document(userID)
+        var food_arr = [Rating]()
+        var workouts_arr = [Rating]()
+        var restrictions = [String]()
+        usr_ref.getDocument { (document, error) in
+            if let document = document, document.exists {
+                let usr_data = document.data()
+                food_arr = usr_data!["foods"] as! [Rating]
+                workouts_arr = usr_data!["workouts"] as! [Rating]
+                restrictions = usr_data!["food_restrictions"] as! [String]
+            } else {
+                print("Document does not exist")
+            }
+        }
+
+        var best_food = Food(id: "",name: "", fat: 0, sat_fat:0, carbs: 0, chol: 0, sodium: 0, sugar: 0, fiber: 0, prot: 0, restrictions: [String]())
+        var best_food_score = Float(0)
+        
+        Firestore.firestore().collection("food").getDocuments { docs, err in
+            if err == nil {
+                print("Error getting documents")
+            } else {
+                for document in docs!.documents{
+                    do {
+                        let food_item = try document.data(as: Food.self)
+                            
+                        let f_score = nut_rater(fat: fat + food_item.fat, sat_fat: sat_fat + food_item.sat_fat, chol: chol + food_item.chol, carbs: carbs + food_item.carbs, sodium: sodium + food_item.sodium, fiber: fiber + food_item.fiber, prot: prot + food_item.prot, sugar: sugar + food_item.sugar)[0]
+                        var restricted = false
+                        for usr_rest in restrictions {
+                            for food_rest in food_item.restrictions {
+                                if usr_rest == food_rest {
+                                    restricted = true
+                                }
+                            }
+                        }
+                            
+                            
+                            
+                        var rating = 5 // can make unknown ratings depend on other item's ratings
+                            
+                        for usr_rate in food_arr {
+                            if usr_rate.item == food_item.name {
+                                rating = usr_rate.rating
+                            }
+                        }
+                            
+                        let weighted_f_score = Float((Float(f_score) - Float(cur_nut_score)) + Float(abs(Float(f_score) - Float(cur_nut_score))) * 0.1 * Float(rating))
+                        
+                        if weighted_f_score > best_food_score && !restricted {
+                            best_food_score = weighted_f_score
+                            best_food = food_item
+                        }
+                             
+                    } catch {
+                        print("error")
+                    }
+                }
+            }
+        }
+        
+        finalSchedule[13] = ActivityCategory(activity: "Just eat the usual, your meals are pretty healthy", category: "Nutrition")
+        if best_food.name != "" {
+            finalSchedule[13] = ActivityCategory(activity: "have some " + best_food.name, category: "Nutrition")
+        }
+
+        let vig_t = 0
+        let mod_t = 0
+        var mus_g = Set<String>() //replace with functions to populate data
+        
+        let cur_work_score = activ_rater(mod_time: mod_t, vig_time: vig_t, mus_groups: mus_g)[0]
+
+        var best_workout = Workout(name: "", group: false, intensity: "", muscles: [String](), place: "")
+        var best_workout_score = Float(0)
+        Firestore.firestore().collection("workouts").getDocuments { docs, err in
+            if err == nil {
+                print("Error getting documents")
+            } else {
+                for document in docs!.documents{
+                    do {
+                        let workout_item = try document.data(as: Workout.self)
+                            
+                        var rating = 5 // can make unknown ratings depend on other item's ratings
+                        
+                        for usr_rate in workouts_arr {
+                            if usr_rate.item == workout_item.name {
+                                rating = usr_rate.rating
+                            }
+                        }
+                        
+                        let w_score = Float(0)
+                        if workout_item.intensity == "moderate" {
+                            let w_score = activ_rater(mod_time: mod_t + 60, vig_time: vig_t, mus_groups: mus_g)[0]
+                        }
+                        if workout_item.intensity == "vigorous" {
+                            let w_score = activ_rater(mod_time: mod_t, vig_time: vig_t + 45, mus_groups: mus_g)[0]
+                        }
+                        if workout_item.intensity == "muscle" {
+                            let groups = mus_g
+                            for g in workout_item.muscles {
+                                mus_g.insert(g)
+                            }
+                            let w_score = activ_rater(mod_time: mod_t, vig_time: vig_t, mus_groups: groups)[0]
+                        }
+                        
+                        
+                        let weighted_w_score = Float((Float(w_score) - Float(cur_work_score)) + Float(abs(Float(w_score) - Float(cur_work_score))) * 0.1 * Float(rating))
+                         
+                        if weighted_w_score > best_workout_score {
+                            best_workout_score = weighted_w_score
+                            best_workout = workout_item
+                        }
+                             
+                    } catch {
+                        print("error")
+                    }
+                }
+            }
+        }
+        
+        finalSchedule[18] = ActivityCategory(activity: "Usual exercise routine", category: "Exercise")
+        if best_workout.name != "" {
+            finalSchedule[18] = ActivityCategory(activity: "1 hour of " + best_workout.name, category: "Exercise")
+        }
+
+        var i = 0
+        while i < ideal_sleeptime {
+            var index = i - 7
+            if index <= 0 {
+                index = index + 24
+            }
+            finalSchedule[index] = ActivityCategory(activity: "Sleep", category: "Sleep")
+            i = i + 1
+        }
+        editableSchedules[date] = finalSchedule
         uploadScheduleToFirebase()
     }
     
@@ -266,6 +428,9 @@ struct RecommendationsView: View {
             let newUserID = UUID().uuidString
             UserDefaults.standard.set(newUserID, forKey: "UserID")
             UserDefaults.standard.set(8, forKey: "ideal_sleep")
+            UserDefaults.standard.set([Rating](), forKey: "foods")
+            UserDefaults.standard.set([Rating](), forKey: "workouts")
+            UserDefaults.standard.set([String](), forKey: "food_restrictions")
             userID = newUserID
         }
         let fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
