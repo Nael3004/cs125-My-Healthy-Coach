@@ -36,8 +36,9 @@ class ScheduleViewModel: ObservableObject {
     
     // Replace this with the actual schedule recommendation code
     func createNewSchedule(for date: String) {
-        let finalSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
+        var finalSchedule: [Int: ActivityCategory] = Array(1...24).reduce(into: [Int: ActivityCategory]()) { $0[$1] = ActivityCategory(activity: "Edit Activity", category: "Edit Category") }
         let db = Firestore.firestore()
+        let healthManager = HealthManager()
         let userID: String
         var ideal_sleeptime = 8
         if let existingUserID = UserDefaults.standard.string(forKey: "UserID") {
@@ -55,6 +56,9 @@ class ScheduleViewModel: ObservableObject {
             let newUserID = UUID().uuidString
             UserDefaults.standard.set(newUserID, forKey: "UserID")
             UserDefaults.standard.set(8, forKey: "ideal_sleep")
+            UserDefaults.standard.set([Rating](), forKey: "foods")
+            UserDefaults.standard.set([Rating](), forKey: "workouts")
+            UserDefaults.standard.set([String](), forKey: "food_restrictions")
             userID = newUserID
         }
         let fat = healthManager.fetchFat().reduce(0, +) / healthManager.fetchFat().count
@@ -80,13 +84,13 @@ class ScheduleViewModel: ObservableObject {
                 print("Document does not exist")
             }
         }
-
+        
         var best_food = Food(id: "",name: "", fat: 0, sat_fat:0, carbs: 0, chol: 0, sodium: 0, sugar: 0, fiber: 0, prot: 0, restrictions: [String]())
         var best_food_score = Float(0)
-        
+    
         Firestore.firestore().collection("food").getDocuments { docs, err in
             if err == nil {
-                print("Error getting documents")
+                print("Error getting documents 1")
             } else {
                 for document in docs!.documents{
                     do {
@@ -192,7 +196,7 @@ class ScheduleViewModel: ObservableObject {
 
         var i = 0
         while i < ideal_sleeptime {
-            var index = i - 7
+            var index = 7 - i
             if index <= 0 {
                 index = index + 24
             }
@@ -223,9 +227,9 @@ class ScheduleViewModel: ObservableObject {
         guard let userID = UserDefaults.standard.string(forKey: "UserID") else {
             return
         }
-        db.collection("users").document(userID).setData(["schedule": ""])
+        db.collection("users").document(userID).setData(["schedule": [:]], merge: true)
     }
-    
+
     private func uploadScheduleToFirebase() {
         let db = Firestore.firestore()
         guard let userID = UserDefaults.standard.string(forKey: "UserID") else {
@@ -330,13 +334,6 @@ struct Recommendation: Identifiable {
     let recommendation: String
 }
 
-// Testing only - Replace with the function that generates the recommendations to be rated
-let recommendationsList = [
-    Recommendation(category: "Health", recommendation: "Daily Exercise"),
-    Recommendation(category: "Diet", recommendation: "Eat More Greens"),
-    Recommendation(category: "Productivity", recommendation: "Use a Planner"),
-]
-
 struct Food: Codable {
     @DocumentID var id: String?
     var name: String
@@ -405,6 +402,7 @@ struct RecommendationsView: View {
             .padding()
         }
         .onAppear {
+            saveRatings()
             loadRatings()
         }
     }
@@ -561,7 +559,7 @@ struct RecommendationsView: View {
             }
         }
         
-        var rec2 = Recommendation(category: "Exercise", recommendation: "We don't have workouts that'd help you yet")
+        var rec2 = Recommendation(category: "Exersice", recommendation: "We don't have workouts that'd help you yet")
         if best_workout.name != "" {
             rec2 = Recommendation(category: "Exercise", recommendation: "Do some " + best_workout.name)
         }
@@ -586,6 +584,44 @@ struct RecommendationsView: View {
     }
 
     private func saveRatings() {
+        let db = Firestore.firestore()
+        guard let userID = UserDefaults.standard.string(forKey: "UserID") else { return }
+        
+        var foods: [[String: Any]] = []
+        var workouts: [[String: Any]] = []
+        var pastSleep: [String: Any] = [:]
+
+        for (category, items) in ratings {
+            for (item, rating) in items {
+                switch category {
+                case "Nutrition":
+                    foods.append(["item": item, "rating": rating])
+                case "Exercise":
+                    workouts.append(["item": item, "rating": rating])
+                case "Sleep":
+                    if let sleepTime = Int(item), category == "past_sleep" {
+                        pastSleep["sleep_time"] = sleepTime
+                        pastSleep["rating"] = rating
+                    }
+                default:
+                    break
+                }
+            }
+        }
+        let updateData: [String: Any] = [
+            "foods": foods,
+            "workouts": workouts
+        ]
+        
+        db.collection("users").document(userID).setData(updateData, merge: true) { error in
+            if let error = error {
+                print("Error updating document: \(error)")
+            } else {
+                print("Document successfully updated")
+            }
+        }
+
+        // Still save to UserDefaults for local persistence
         if let encodedRatings = try? JSONEncoder().encode(ratings) {
             UserDefaults.standard.set(encodedRatings, forKey: "recommendationRatings")
         }
@@ -767,7 +803,8 @@ struct ContentView: View {
         let activeRestrictions = foodRestrictions.filter { $0.value }.map { $0.key }
         let userData: [String: Any] = [
             "age": age,
-            "food_restrictions": activeRestrictions
+            "food_restrictions": activeRestrictions,
+            "ideal_sleep": 8
         ]
         db.collection("users").document(userID).setData(userData, merge: true)
         UserDefaults.standard.set(age, forKey: ageKey)
